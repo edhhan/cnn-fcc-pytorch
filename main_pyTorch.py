@@ -1,21 +1,19 @@
-import matplotlib.pyplot as plt
-import torch
-from torch.autograd import Variable
-import torchvision
-import torch.nn.functional as F
-import torchvision.transforms as transforms
-from torch import nn
-from torch import optim
-from FCC_class import FCC
-from CNN_class import CNN
-import numpy as np
-import torchvision.datasets as datasets
 import time
 
-#################################################################################
-##-Import MNIST-data
+import matplotlib.pyplot as plt
+import torch
+import torch.nn.functional as F
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+from torch import optim
+from torch.autograd import Variable
+
+from CNN_class import CNN
+from FCC_class import FCC
 
 
+
+# FashionMNIST dataset
 data_MINST = datasets.FashionMNIST('./data', train=True, download=True,
                                     transform=transforms.Compose([
                                         transforms.ToTensor(),
@@ -27,24 +25,19 @@ train_data, val_data = torch.utils.data.random_split(data_MINST, [50000, 10000])
 batch_size = 100
 test_batch_size = 100
 
+# Training set
 train_loader = torch.utils.data.DataLoader(train_data,
                                             batch_size=batch_size, shuffle=True)
 
+# Validation set
 validation_loader = torch.utils.data.DataLoader(val_data,
                                             batch_size=batch_size, shuffle=True)
 
-
-# All data : ERROR
-accuracy_loader = torch.utils.data.DataLoader(data_MINST,
-                                            batch_size=batch_size, shuffle=True)
-
-
-##################################################################################
 # Training
 def train(nn_model, train_loader, optimizer, GPU):
     """
     :param model: nn model defined in a X_class.py
-    :param train_load: ?
+    :param train_load: data format from torchvision
     :param GPU: boolean variable that initialize some variable on the GPU if accessible, otherwise on CPU
     """
     nn_model.train()
@@ -67,8 +60,7 @@ def train(nn_model, train_loader, optimizer, GPU):
     return nn_model
 
 
-#####################################################################################
-##-Accuracy function
+# Accuracy
 def get_accuracy(nn_model, loader, GPU):
     nn_model.eval()
     loss_validation = 0
@@ -88,11 +80,11 @@ def get_accuracy(nn_model, loader, GPU):
     return nb_correct.item() * 100 / len(loader.dataset), loss_validation/len(loader.dataset)
 
 
-######################################################################################
-##-Testing Function
+# Testing function
 def testing(nn_model, nb_epoch, lr, GPU=False):
     best_precision = 0
-    optimizer = optim.Adam(nn_model.parameters(), lr=lr)
+    optimizer = optim.Adam(nn_model.parameters(), lr=lr, weight_decay=0.05)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     training_losses = []
     accuracies = []
     validation_losses = []
@@ -114,33 +106,41 @@ def testing(nn_model, nb_epoch, lr, GPU=False):
             best_precision = precision
             best_model = nn_model
 
+        # Scheduler
+        scheduler.step((loss_validation))
+
+
     plt.figure()
-    plt.plot(range(nb_epoch), training_losses, '--b', label='Entraînement')
-    plt.plot(range(nb_epoch), validation_losses, '--r', label='Validation')
+    plt.plot(range(1, nb_epoch+1), training_losses, '--b', label='Training')
+    plt.plot(range(1, nb_epoch+1), validation_losses, '--r', label='Validation')
     plt.xlabel('Epoch')
-    plt.ylabel('Log négatif de vraisemblance moyenne')
+    plt.ylabel('Negative log likelihood')
+
     plt.legend()
 
     plt.figure()
-    plt.plot(range(nb_epoch), accuracies)
-    plt.ylabel('Précision (%)')
+    plt.plot(range(1, nb_epoch+1), accuracies)
+    plt.ylabel('Precision (%)')
     plt.xlabel('Epoch')
 
     return best_model, best_precision
 
 
-###################################################################################
-##-Main
+########
+# Main #
+########
 
 #Hyperparameters
-lr = 0.0001
-nb_epoch = 50
-GPU = False
+lr = 0.0001  # Note : scheduler implemented in testing() function
+nb_epoch = 100
+GPU = True
 
 #-Model loop
 best_precision = 0
 losses = []
-for model in [FCC(), CNN()]: 
+
+#for model in [FCC(), CNN()]:
+for model in [CNN()]:
 
     if GPU:
         model.cuda()
